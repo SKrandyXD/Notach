@@ -1,0 +1,7 @@
+{
+  "ok": false,
+  "error": {
+    "code": "API_NOT_DEPLOYED",
+    "message": "The Notach API must be configured separately."
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "browserHost": "localhost",
+  "emulatorHost": "127.0.0.1",
+  "webPort": 5173,
+  "apiPort": 4000,
+  "authPort": 9099,
+  "firestorePort": 8080,
+  "emulatorUiPort": 4001,
+  "emulatorHubPort": 4400,
+  "emulatorLoggingPort": 4500
+}

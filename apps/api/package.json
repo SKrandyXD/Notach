@@ -1,0 +1,38 @@
+{
+  "name": "@notach/api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently --kill-others-on-fail --names API,TSC --prefix-colors blue,magenta \"node --watch dist/server.js\" \"tsc -p tsconfig.json --watch --preserveWatchOutput\"",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/server.js",
+    "check:ai": "node dist/scripts/check-ai.js",
+    "test": "vitest run",
+    "test:rules": "vitest run --config vitest.rules.config.ts"
+  },
+  "dependencies": {
+    "@google/genai": "^2.0.0",
+    "@notach/shared": "1.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "firebase-admin": "^13.6.0",
+    "helmet": "^8.1.0",
+    "yjs": "^13.6.33",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.0",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.5",
+    "@types/node": "^24.10.0",
+    "@types/supertest": "^6.0.3",
+    "firebase": "^12.5.0",
+    "supertest": "^7.1.4",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

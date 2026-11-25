@@ -1,0 +1,218 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+    function boundedList(maximum) {
+      return request.query.limit != null
+        && request.query.limit > 0
+        && request.query.limit <= maximum;
+    }
+    function owns(noteId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/notes/$(noteId))
+        && get(/databases/$(database)/documents/notes/$(noteId)).data.ownerUid
+          == request.auth.uid;
+    }
+    function shareAllows(noteId, roles) {
+      let share = get(/databases/$(database)/documents/noteShares/$(noteId + '_' + request.auth.uid)).data;
+      return share is map
+        && share.noteId == noteId
+        && share.participantUid == request.auth.uid
+        && share.status == 'accepted'
+        && share.role in roles;
+    }
+    function hasNoteAccess(noteId, roles) {
+      let note = get(/databases/$(database)/documents/notes/$(noteId)).data;
+      return note is map
+        && (note.ownerUid == request.auth.uid || shareAllows(noteId, roles));
+    }
+    function canRead(noteId) {
+      return signedIn() && hasNoteAccess(noteId, ['viewer', 'editor']);
+    }
+    function canEdit(noteId) {
+      return signedIn() && hasNoteAccess(noteId, ['editor']);
+    }
+    function validProfile(data) {
+      return data.keys().hasAll([
+          'displayName', 'preferredLanguage', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'displayName', 'preferredLanguage', 'createdAt', 'updatedAt'
+        ])
+        && data.displayName is string
+        && data.displayName.size() <= 80
+        && data.preferredLanguage in ['uk', 'en']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+    function validTag(tag) {
+      // The bounded pattern checks length (1..30), trim and prefix together.
+      return tag is string
+        && tag == tag.lower()
+        && tag.matches('[^\\s#](.{0,28}[^\\s])?');
+    }
+    function validTags(tags) {
+      let count = tags.size();
+      // Rules cannot loop over arbitrary lists. Check every allowed position.
+      return tags is list
+        && count <= 20
+        && tags.toSet().size() == count
+        && (count < 1 || validTag(tags[0]))
+        && (count < 2 || validTag(tags[1]))
+        && (count < 3 || validTag(tags[2]))
+        && (count < 4 || validTag(tags[3]))
+        && (count < 5 || validTag(tags[4]))
+        && (count < 6 || validTag(tags[5]))
+        && (count < 7 || validTag(tags[6]))
+        && (count < 8 || validTag(tags[7]))
+        && (count < 9 || validTag(tags[8]))
+        && (count < 10 || validTag(tags[9]))
+        && (count < 11 || validTag(tags[10]))
+        && (count < 12 || validTag(tags[11]))
+        && (count < 13 || validTag(tags[12]))
+        && (count < 14 || validTag(tags[13]))
+        && (count < 15 || validTag(tags[14]))
+        && (count < 16 || validTag(tags[15]))
+        && (count < 17 || validTag(tags[16]))
+        && (count < 18 || validTag(tags[17]))
+        && (count < 19 || validTag(tags[18]))
+        && (count < 20 || validTag(tags[19]));
+    }
+    function validNote(data) {
+      return data.keys().hasAll([
+          'ownerUid', 'title', 'titleNormalized', 'content', 'tags',
+          'revision', 'status', 'summaryCount', 'favorite',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerUid', 'title', 'titleNormalized', 'content', 'tags',
+          'revision', 'status', 'summaryCount', 'favorite',
+          'createdAt', 'updatedAt'
+        ])
+        && data.ownerUid is string
+        && data.ownerUid.size() > 0 && data.ownerUid.size() <= 128
+        && data.title is string
+        && data.title.size() > 0 && data.title.size() <= 120
+        && data.title.matches('\\S([\\s\\S]*\\S)?')
+        && data.titleNormalized is string
+        && data.titleNormalized.size() > 0
+        && data.titleNormalized.size() <= 120
+        && data.titleNormalized.matches('\\S([\\s\\S]*\\S)?')
+        && data.titleNormalized == data.titleNormalized.lower()
+        && data.content is string && data.content.size() <= 50000
+        && validTags(data.tags)
+        && data.revision is int
+        && data.revision >= 1 && data.revision <= 9007199254740991
+        && data.status in ['active', 'archived']
+        && data.summaryCount is int && data.summaryCount >= 0
+        && data.favorite is bool
+        && data.createdAt is timestamp && data.updatedAt is timestamp;
+    }
+    match /users/{uid} {
+      allow get: if signedIn() && request.auth.uid == uid;
+      allow list, delete: if false;
+      allow create: if signedIn() && request.auth.uid == uid
+        && validProfile(request.resource.data)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update: if signedIn() && request.auth.uid == uid
+        && validProfile(request.resource.data)
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'displayName', 'preferredLanguage', 'updatedAt'
+        ]);
+    }
+    match /notes/{noteId} {
+      allow get: if canRead(noteId);
+      allow list: if signedIn() && boundedList(100)
+        && resource.data.ownerUid == request.auth.uid;
+      allow create: if signedIn()
+        && noteId.size() <= 128
+        && validNote(request.resource.data)
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.revision == 1
+        && request.resource.data.status == 'active'
+        && request.resource.data.summaryCount == 0
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update: if canEdit(noteId)
+        && validNote(request.resource.data)
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.summaryCount == resource.data.summaryCount
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'title', 'titleNormalized', 'content', 'tags', 'revision',
+          'status', 'favorite', 'updatedAt'
+        ])
+        && ((request.resource.data.content != resource.data.content
+            && request.resource.data.revision == resource.data.revision + 1)
+          || (request.resource.data.content == resource.data.content
+            && request.resource.data.revision == resource.data.revision));
+      allow delete: if false;
+      match /collaboration/{stateId} {
+        allow get: if stateId == 'current' && canRead(noteId);
+        allow list: if false;
+        allow create, update: if stateId == 'current' && canEdit(noteId)
+          && request.resource.data.keys().hasAll([
+            'state', 'noteRevision', 'updatedBy', 'updatedAt'
+          ])
+          && request.resource.data.keys().hasOnly([
+            'state', 'noteRevision', 'updatedBy', 'updatedAt'
+          ])
+          && request.resource.data.state is string
+          && request.resource.data.state.size() > 0
+          && request.resource.data.state.size() <= 700000
+          && request.resource.data.state.size() % 4 == 0
+          && request.resource.data.state.matches('[A-Za-z0-9+/]+={0,2}')
+          && request.resource.data.noteRevision is int
+          && request.resource.data.noteRevision >= 1
+          && request.resource.data.noteRevision == getAfter(/databases/$(database)/documents/notes/$(noteId)).data.revision
+          && request.resource.data.updatedBy == request.auth.uid
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if false;
+      }
+      match /summaries/{summaryId} {
+        allow get: if canRead(noteId);
+        allow list: if canRead(noteId) && boundedList(50);
+        allow write: if false;
+        match /collaboration/{stateId} {
+          allow get: if stateId == 'current' && canRead(noteId)
+            && exists(/databases/$(database)/documents/notes/$(noteId)/summaries/$(summaryId));
+          allow write, list: if false;
+        }
+        match /feedback/{uid} {
+          allow get: if canRead(noteId)
+            && exists(/databases/$(database)/documents/notes/$(noteId)/summaries/$(summaryId))
+            && (owns(noteId) || request.auth.uid == uid);
+          allow list: if owns(noteId) && boundedList(100)
+            && exists(/databases/$(database)/documents/notes/$(noteId)/summaries/$(summaryId));
+          // All feedback writes use the authenticated API, which checks parent
+          // existence and controls immutable authorship and timestamps.
+          allow write: if false;
+        }
+      }
+      match /summaryActivity/{stateId} {
+        allow get: if stateId == 'current' && canRead(noteId);
+        allow write, list: if false;
+      }
+    }
+    match /noteShares/{shareId} {
+      allow get: if signedIn()
+        && (resource.data.participantUid == request.auth.uid
+          || owns(resource.data.noteId));
+      allow list: if signedIn() && boundedList(100)
+        && (resource.data.participantUid == request.auth.uid
+          || owns(resource.data.noteId));
+      allow write: if false;
+    }
+    // Includes billing ledgers, generation cancellation tombstones, unknown
+    // collections and arbitrary nested paths. Admin SDK authorization is in API.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

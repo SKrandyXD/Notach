@@ -1,0 +1,47 @@
+{
+  "name": "notach",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "workspaces": [
+    "apps/web",
+    "apps/api",
+    "packages/shared"
+  ],
+  "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "dev:web": "npm run build -w @notach/shared && npm run dev -w @notach/web",
+    "dev:api": "npm run build -w @notach/shared && npm run build -w @notach/api && npm run dev -w @notach/api",
+    "config:sync": "npm run build -w @notach/shared && node scripts/sync-firebase-config.mjs",
+    "config:show": "npm run build -w @notach/shared && node scripts/sync-firebase-config.mjs --show",
+    "check:ai": "npm run build -w @notach/shared && npm run build -w @notach/api && npm run check:ai -w @notach/api",
+    "verify:ai": "npm run build -w @notach/shared && npm run build -w @notach/api && npm run check:ai -w @notach/api -- --generate",
+    "emulators": "npm run config:sync && firebase emulators:start --only auth,firestore --project default",
+    "build": "npm run build -w @notach/shared && npm run build -w @notach/api && npm run build -w @notach/web",
+    "typecheck": "npm run build -w @notach/shared && npm run typecheck --workspaces --if-present",
+    "lint": "eslint apps packages --max-warnings=0",
+    "test": "npm run build -w @notach/shared && npm run test --workspaces --if-present",
+    "test:rules": "npm run config:sync && firebase emulators:exec --only firestore --project demo-notach \"npm run test:rules -w @notach/api\""
+  },
+  "devDependencies": {
+    "prettier": "^3.5.0",
+    "@eslint/js": "^9.39.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^24.10.0",
+    "@types/supertest": "^6.0.3",
+    "concurrently": "^9.2.1",
+    "eslint": "^9.39.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "firebase-tools": "^14.22.0",
+    "jsdom": "^27.1.0",
+    "supertest": "^7.1.4",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.3",
+    "vitest": "^3.2.4"
+  }
+}
